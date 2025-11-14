@@ -1,76 +1,104 @@
-# --- Builder ---
+# --- Best Practices Dockerfile for Django with uv ---
+
+# --- Builder Stage ---
+# Use a specific version of Python for reproducibility.
+# 'slim' is a good balance between size and having necessary tools.
 FROM python:3.14-slim AS builder
 
+# Set environment variables to prevent generating .pyc files and to ensure output is unbuffered.
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install build dependencies
+# Group apt-get commands to reduce layers and clean up cache to keep the image small.
 RUN apt-get update && apt-get install -y \
+    # Build dependencies for Python packages
     build-essential \
     libpq-dev \
     python3-dev \
+    # Client for connecting to PostgreSQL
     postgresql-client \
+    # Needed to download uv
     curl \
+    # Dependencies for Pillow (image processing)
     libjpeg-dev libpng-dev libwebp-dev \
+    # Needed for some version control-based package installs
     git \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
-WORKDIR /opt
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install uv, the modern Python package manager, directly to a system-wide location.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 
-# Copy requirements and install dependencies
-COPY requirements/ /tmp/requirements/
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /tmp/requirements/development.txt
-
-# Set the working directory
+# Set the working directory.
 WORKDIR /app
 
-# --- Runner ---
+# Copy only the requirements files first to leverage Docker's layer caching.
+# The layer will only be rebuilt if the requirements files change.
+COPY requirements/ /tmp/requirements/
+
+# Install Python dependencies into the system's site-packages.
+# We use --system because the container itself provides the isolation, making a venv redundant.
+RUN uv pip install --no-cache --system -r /tmp/requirements/development.txt
+
+
+# --- Runner Stage ---
+# Start from the same slim base image for the final container.
 FROM python:3.14-slim
 
+# Set environment variables.
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install runtime dependencies and gosu
+# Install only the necessary runtime dependencies to keep the final image lean.
 RUN apt-get update && apt-get install -y \
+    # PostgreSQL client library
     libpq5 \
+    # Runtime libraries for Pillow
     libjpeg62-turbo libpng16-16 libwebp7 \
+    # Needed for the healthcheck
     curl \
+    # Used in the entrypoint to drop root privileges
     gosu \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Create user and working directory
-WORKDIR /app
+# Create a non-root user and group for security best practices.
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Set the working directory.
+WORKDIR /app
 
-# Copy entrypoint script and requirements
+# Copy the installed uv binary from the builder stage to make it available at runtime.
+# The source path is where the default uv installer places the binary.
+# The destination path is a standard location for executables in the final image.
+COPY --from=builder /root/.local/bin/uv /usr/local/bin/uv
+
+# Copy the installed Python packages and their executables (like gunicorn, django-admin)
+# from the builder stage. This is the key to making the multi-stage build work.
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy the entrypoint script and requirements directory.
 COPY entrypoint.sh /app/
 COPY requirements/ /app/requirements/
 
-# Create directories and set permissions
+# Create necessary directories and set correct permissions for the non-root user.
 RUN chmod +x /app/entrypoint.sh && \
     mkdir -p /app/media /app/staticfiles /app/logs && \
     chown -R appuser:appuser /app
 
-# The container will be started as root and the entrypoint will use gosu to step down to the appuser.
-# USER appuser
-
-# Expose port
+# Expose the port the application will run on.
 EXPOSE 8000
 
-# Healthcheck
+# Healthcheck to verify the application is running and healthy.
+# Using array form is a best practice.
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health/ || exit 1
+    CMD [ "curl", "-f", "http://localhost:8000/api/health/" ]
 
-# Entrypoint and default command
+# The entrypoint script handles database checks, migrations, and user privilege dropping.
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+
+# The default command to run the application.
+# Using 'uv run' ensures the command is executed in the correct environment context.
+CMD ["uv", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]

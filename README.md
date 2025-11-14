@@ -11,7 +11,7 @@ This project provides a comprehensive, containerized boilerplate for building mo
 ### Technologies Used
 
 - **Containerization:** Docker, Docker Compose
-- **Backend:** Django, Django Rest Framework, Gunicorn
+- **Backend:** Django, Django Rest Framework, Gunicorn (with `uv` for package management)
 - **Frontend:** React, Vite, TailwindCSS
 - **Database:** PostgreSQL
 - **Caching:** Redis
@@ -117,7 +117,7 @@ Este projeto fornece um boilerplate abrangente e containerizado para a construç
 ### Tecnologias Utilizadas
 
 - **Containerização:** Docker, Docker Compose
-- **Backend:** Django, Django Rest Framework, Gunicorn
+- **Backend:** Django, Django Rest Framework, Gunicorn (com `uv` para gerenciamento de pacotes)
 - **Frontend:** React, Vite, TailwindCSS
 - **Banco de Dados:** PostgreSQL
 - **Cache:** Redis
