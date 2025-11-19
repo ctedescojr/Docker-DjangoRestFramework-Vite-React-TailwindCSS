@@ -27,19 +27,19 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install uv, the modern Python package manager, directly to a system-wide location.
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Set the working directory.
 WORKDIR /app
 
 # Copy only the requirements files first to leverage Docker's layer caching.
 # The layer will only be rebuilt if the requirements files change.
-COPY requirements/ /tmp/requirements/
+COPY pyproject.toml uv.lock ./
+
 
 # Install Python dependencies into the system's site-packages.
 # We use --system because the container itself provides the isolation, making a venv redundant.
-RUN uv pip install --no-cache --system -r /tmp/requirements/development.txt
+RUN uv pip install --system --no-cache .
 
 
 # --- Runner Stage ---
@@ -47,9 +47,10 @@ RUN uv pip install --no-cache --system -r /tmp/requirements/development.txt
 FROM python:3.14-slim
 
 # Set environment variables.
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    PATH="/usr/local/bin:$PATH"
 
 # Install only the necessary runtime dependencies to keep the final image lean.
 RUN apt-get update && apt-get install -y \
@@ -72,7 +73,8 @@ WORKDIR /app
 # Copy the installed uv binary from the builder stage to make it available at runtime.
 # The source path is where the default uv installer places the binary.
 # The destination path is a standard location for executables in the final image.
-COPY --from=builder /root/.local/bin/uv /usr/local/bin/uv
+COPY --from=builder /bin/uv /usr/local/bin/uv
+COPY --from=builder /bin/uvx /usr/local/bin/uvx
 
 # Copy the installed Python packages and their executables (like gunicorn, django-admin)
 # from the builder stage. This is the key to making the multi-stage build work.
@@ -81,7 +83,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy the entrypoint script and requirements directory.
 COPY entrypoint.sh /app/
-COPY requirements/ /app/requirements/
+COPY pyproject.toml uv.lock ./
 
 # Create necessary directories and set correct permissions for the non-root user.
 RUN chmod +x /app/entrypoint.sh && \
