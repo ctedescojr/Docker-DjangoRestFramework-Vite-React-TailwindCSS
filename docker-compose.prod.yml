@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis for cahce and sessions
+  # Redis for cache and sessions
   redis:
     image: redis:7-alpine
     container_name: yourproject_redis_prod
