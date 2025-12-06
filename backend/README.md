@@ -31,26 +31,28 @@ While the project is fully containerized, you can also set up a local developmen
 
 #### Prerequisites
 
--   Python 3.14 or higher
+-   Python 3.14.1 or higher
 -   `uv` installed on your local machine.
 
 #### Setup Steps
 
-1.  **Create a Virtual Environment:**
-    Navigate to the `backend` directory and use `uv` to create and activate a virtual environment.
+1.  **Create Virtual Environment and Install Dependencies:**
+    Navigate to the `backend` directory. When you run `uv pip sync` for the first time, `uv` will automatically create a virtual environment in the `.venv` directory and then install all the dependencies specified in the `pyproject.toml` and `uv.lock` files.
 
     ```bash
     # From the backend/ directory
-    uv venv
-    source .venv/bin/activate # On macOS/Linux
-    .venv\Scripts\activate    # On Windows
+    uv pip sync
     ```
 
-2.  **Install Dependencies:**
-    Use `uv` to sync the dependencies from the `pyproject.toml` and `uv.lock` files into your virtual environment.
+2.  **Activate the Virtual Environment:**
+    To use the new environment for local development (e.g., running `django-admin` commands or using your IDE's integrations), you need to activate it:
 
     ```bash
-    uv sync
+    # On macOS/Linux
+    source .venv/bin/activate
+
+    # On Windows
+    .venv\Scripts\activate
     ```
 
     Now your local environment is ready. Your IDE will be able to recognize the installed packages, providing a much-improved development experience.
@@ -93,26 +95,28 @@ Embora o projeto seja totalmente containerizado, você também pode configurar u
 
 #### Pré-requisitos
 
--   Python 3.14 ou superior
+-   Python 3.14.1 ou superior
 -   `uv` instalado na sua máquina local.
 
 #### Passos para Configuração
 
-1.  **Crie um Ambiente Virtual:**
-    Navegue até o diretório `backend` e use o `uv` para criar e ativar um ambiente virtual.
+1.  **Crie o Ambiente Virtual e Instale as Dependências:**
+    Navegue até o diretório `backend`. Ao executar `uv pip sync` pela primeira vez, o `uv` irá automaticamente criar um ambiente virtual no diretório `.venv` e, em seguida, instalar todas as dependências especificadas nos arquivos `pyproject.toml` e `uv.lock`.
 
     ```bash
     # A partir do diretório backend/
-    uv venv
-    source .venv/bin/activate # Em macOS/Linux
-    .venv\Scripts\activate    # Em Windows
+    uv pip sync
     ```
 
-2.  **Instale as Dependências:**
-    Use o `uv` para sincronizar as dependências dos arquivos `pyproject.toml` e `uv.lock` no seu ambiente virtual.
+2.  **Ative o Ambiente Virtual:**
+    Para usar o novo ambiente para desenvolvimento local (por exemplo, para executar comandos `django-admin` ou usar as integrações da sua IDE), você precisa ativá-lo:
 
     ```bash
-    uv sync
+    # Em macOS/Linux
+    source .venv/bin/activate
+
+    # Em Windows
+    .venv\Scripts\activate
     ```
 
     Agora seu ambiente local está pronto. Sua IDE será capaz de reconhecer os pacotes instalados, proporcionando uma experiência de desenvolvimento muito melhor.

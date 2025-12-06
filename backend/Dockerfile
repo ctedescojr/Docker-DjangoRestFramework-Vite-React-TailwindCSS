@@ -3,7 +3,7 @@
 # --- Builder Stage ---
 # Use a specific version of Python for reproducibility.
 # 'slim' is a good balance between size and having necessary tools.
-FROM python:3.14-slim AS builder
+FROM python:3.14.1-slim AS builder
 
 # Set environment variables to prevent generating .pyc files and to ensure output is unbuffered.
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -44,7 +44,7 @@ RUN uv pip install --system --no-cache .
 
 # --- Runner Stage ---
 # Start from the same slim base image for the final container.
-FROM python:3.14-slim
+FROM python:3.14.1-slim
 
 # Set environment variables.
 ENV PYTHONDONTWRITEBYTECODE=1 \
