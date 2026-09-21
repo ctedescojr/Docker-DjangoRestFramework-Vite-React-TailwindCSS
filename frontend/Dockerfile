@@ -1,83 +1,87 @@
-#
-# Frontend Dockerfile - React + Vite + Tailwind CSS
-# This is a multi-stage Dockerfile for both development and production.
-#
+# ==============================================================================
+# Multi-Stage Dockerfile for React + Vite + Tailwind CSS (Node 24 LTS)
+# ==============================================================================
 
-# --- Development Stage ---
-# This stage is for running the Vite dev server with hot-reloading.
+# ------------------------------------------------------------------------------
+# 1. DEVELOPMENT STAGE
+# ------------------------------------------------------------------------------
+# Used for local development with hot module reloading (HMR).
 FROM node:24-alpine AS development
 
-# Set the working directory
 WORKDIR /app
 
-# Copy dependency definition files
-# The entrypoint script will handle dependency installation at runtime.
+# Copy dependency definitions first to leverage Docker layer caching
 COPY package*.json ./
 
-# Install gosu for permission management
+# Install development dependencies
+RUN npm install
+
+# Install gosu for seamless permission and UID/GID stepping down
 RUN apk add --no-cache gosu
 
-# Copy the rest of the application source code (including the scripts folder)
+# Copy application source code into the image
 COPY . .
 
-# The container will be started as root and the entrypoint will use gosu to step down to the node user.
-# This is necessary to fix potential file permission issues with bind mounts.
-
-# Copy the entrypoint script and make it executable
+# Copy entrypoint and make scripts executable
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh && \
+    if [ -f /app/scripts/init_project.sh ]; then chmod +x /app/scripts/init_project.sh; fi
 
-# Expose the Vite development port
+# Expose Vite development server port
 EXPOSE 5173
 
-# The entrypoint script will handle project initialization and run the main command
+# Entrypoint manages user UID/GID matching and runtime npm checks
 ENTRYPOINT ["entrypoint.sh"]
+
+# Default development command
 CMD ["npm", "run", "dev"]
 
 
-# --- Build Stage ---
-# This stage builds the application for production.
+# ------------------------------------------------------------------------------
+# 2. BUILD STAGE
+# ------------------------------------------------------------------------------
+# Compiles TypeScript and builds optimized static assets for production.
 FROM node:24-alpine AS build
 
-# Set the working directory
 WORKDIR /app
 
 # Copy dependency definition files
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies needed for the build)
+# Install clean dependencies required for the build process
 RUN npm ci
 
-# Copy the rest of the application source code
+# Copy full application source code
 COPY . .
 
-# Build the static files for production
+# Build production distribution bundle in /app/dist
 RUN npm run build
 
 
-# --- Production Stage ---
-# This stage serves the built static files using Nginx.
+# ------------------------------------------------------------------------------
+# 3. PRODUCTION STAGE
+# ------------------------------------------------------------------------------
+# Serves static assets using a hardened, lightweight Nginx web server.
 FROM nginx:1.27-alpine AS production
 
-# Install curl for the healthcheck
+# Install curl utility for Docker container health check
 RUN apk add --no-cache curl
 
-# Copy the custom Nginx configuration (assuming you have one at nginx/nginx.conf)
-# This config should be optimized for Single Page Applications (SPAs)
-# COPY nginx/nginx.conf /etc/nginx/nginx.conf
+# Copy custom Nginx configuration optimized for SPA fallback and Django reverse proxy
+COPY nginx/nginx.prod.conf /etc/nginx/conf.d/default.conf
 
-# Remove the default Nginx welcome page
+# Remove default Nginx welcome pages
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copy the built static files from the 'build' stage
+# Copy built production assets from the build stage into Nginx web root
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Expose the production port
+# Expose standard HTTP web port
 EXPOSE 80
 
-# Healthcheck to verify that Nginx is running and serving content
+# Health check to ensure Nginx server is actively responding
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl --fail http://localhost/ || exit 1
+    CMD curl --fail http://localhost/ || exit 1
 
-# Start Nginx
+# Start Nginx in foreground
 CMD ["nginx", "-g", "daemon off;"]

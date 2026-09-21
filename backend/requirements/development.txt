@@ -1,7 +1,0 @@
-# ==============================================================================
-# Development Dependencies - Tools for local development and debugging
-# ==============================================================================
--r base.txt
-
-# Example: A useful tool for debugging Django projects
-# django-debug-toolbar
